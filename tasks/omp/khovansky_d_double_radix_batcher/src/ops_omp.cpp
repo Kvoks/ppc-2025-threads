@@ -44,17 +44,17 @@ void RadixSort(std::vector<uint64_t>& array) {
   for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
     std::vector<int> local_frequency(bucket_count, 0);
 
-    #pragma omp parallel
+#pragma omp parallel
     {
       std::vector<int> private_frequency(bucket_count, 0);
 
-      #pragma omp for nowait
-      for (int i = 0; i < array.size(); i++) {
+#pragma omp for nowait
+      for (auto i = 0; i < array.size(); i++) {
         auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
         private_frequency[bucket]++;
       }
 
-      #pragma omp critical
+#pragma omp critical
       for (int i = 0; i < bucket_count; i++) {
         local_frequency[i] += private_frequency[i];
       }
@@ -80,16 +80,16 @@ void OddEvenMergeSort(std::vector<uint64_t>& array, int left, int right) {
 
   int middle = left + ((right - left) / 2);
 
-  #pragma omp parallel sections
+#pragma omp parallel sections
   {
-    #pragma omp section
+#pragma omp section
     OddEvenMergeSort(array, left, middle);
 
-    #pragma omp section
+#pragma omp section
     OddEvenMergeSort(array, middle, right);
   }
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int i = left; i < right - 1; i += 2) {
     if (array[i] > array[i + 1]) {
       std::swap(array[i], array[i + 1]);
@@ -100,16 +100,16 @@ void OddEvenMergeSort(std::vector<uint64_t>& array, int left, int right) {
 void RadixBatcherSort(std::vector<double>& data) {
   std::vector<uint64_t> transformed_data(data.size(), 0);
 
-  #pragma omp parallel for
-  for (int i = 0; i < data.size(); i++) {
+#pragma omp parallel for
+  for (auto i = 0; i < data.size(); i++) {
     transformed_data[i] = EncodeDoubleToUint64(data[i]);
   }
 
   RadixSort(transformed_data);
   OddEvenMergeSort(transformed_data, 0, static_cast<int>(transformed_data.size()));
 
-  #pragma omp parallel for
-  for (int i = 0; i < data.size(); i++) {
+#pragma omp parallel for
+  for (auto i = 0; i < data.size(); i++) {
     data[i] = DecodeUint64ToDouble(transformed_data[i]);
   }
 }
