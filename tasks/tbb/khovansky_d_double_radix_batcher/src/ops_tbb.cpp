@@ -13,7 +13,7 @@
 
 #include "oneapi/tbb/task_arena.h"
 #include "oneapi/tbb/task_group.h"
-#include "tbb/enumerable_thread_specific.h"
+#include "oneapi/tbb/enumerable_thread_specific.h"
 
 namespace khovansky_d_double_radix_batcher_tbb {
 namespace {
