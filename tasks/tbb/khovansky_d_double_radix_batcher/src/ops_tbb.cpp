@@ -2,7 +2,7 @@
 
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_for.h>
-#include <tbb/enumerable_thread_specific.h>
+#include "tbb/enumerable_thread_specific.h"
 #include <tbb/tbb.h>
 
 #include <algorithm>
