@@ -1,20 +1,19 @@
 #include "tbb/khovansky_d_double_radix_batcher/include/ops_tbb.hpp"
 
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/tbb.h>
 
 #include <algorithm>
 #include <cmath>
-#include <core/util/include/util.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <vector>
 
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/parallel_for.h>
 #include "oneapi/tbb/task_arena.h"
 #include "oneapi/tbb/task_group.h"
-#include <tbb/enumerable_thread_specific.h>
 
 namespace khovansky_d_double_radix_batcher_tbb {
 namespace {
@@ -48,19 +47,16 @@ void RadixSort(std::vector<uint64_t>& array) {
   std::vector<uint64_t> buffer(array.size(), 0);
 
   for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
-    tbb::enumerable_thread_specific<std::vector<int>> local_histograms([=] {
-      return std::vector<int>(bucket_count, 0);
-    });
+    tbb::enumerable_thread_specific<std::vector<int>> local_histograms(
+        [=] { return std::vector<int>(bucket_count, 0); });
 
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()),
-      [&](const tbb::blocked_range<size_t>& r) {
-        auto& local = local_histograms.local();
-        for (size_t i = r.begin(); i < r.end(); ++i) {
-          uint8_t bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
-          local[bucket]++;
-        }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()), [&](const tbb::blocked_range<size_t>& r) {
+      auto& local = local_histograms.local();
+      for (size_t i = r.begin(); i < r.end(); ++i) {
+        auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+        local[bucket]++;
       }
-    );
+    });
 
     std::vector<int> frequency(bucket_count, 0);
     for (const auto& local : local_histograms) {
@@ -74,21 +70,17 @@ void RadixSort(std::vector<uint64_t>& array) {
       offsets[i] = offsets[i - 1] + frequency[i - 1];
     }
 
-    tbb::enumerable_thread_specific<std::vector<int>> local_offsets([&]() {
-      return offsets;
-    });
+    tbb::enumerable_thread_specific<std::vector<int>> local_offsets([&]() { return offsets; });
 
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()),
-      [&](const tbb::blocked_range<size_t>& r) {
-        auto& local_off = local_offsets.local();
-        for (size_t i = r.begin(); i < r.end(); ++i) {
-          uint64_t val = array[i];
-          uint8_t bucket = static_cast<uint8_t>((val >> shift) & 0xFF);
-          size_t pos = local_off[bucket]++;
-          buffer[pos] = val;
-        }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()), [&](const tbb::blocked_range<size_t>& r) {
+      auto& local_off = local_offsets.local();
+      for (size_t i = r.begin(); i < r.end(); ++i) {
+        uint64_t val = array[i];
+        auto bucket = static_cast<uint8_t>((val >> shift) & 0xFF);
+        size_t pos = local_off[bucket]++;
+        buffer[pos] = val;
       }
-    );
+    });
 
     array.swap(buffer);
   }
