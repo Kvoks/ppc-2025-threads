@@ -46,22 +46,17 @@ void RadixSort(std::vector<uint64_t>& array) {
   std::vector<int> frequency(bucket_count, 0);
 
   for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
-    tbb::combinable<std::vector<int>> local_freq([&]() {
-      return std::vector<int>(bucket_count, 0);
+    tbb::combinable<std::vector<int>> local_freq([&]() { return std::vector<int>(bucket_count, 0); });
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()), [&](const tbb::blocked_range<size_t>& range) {
+      auto& local = local_freq.local();
+      for (size_t i = range.begin(); i < range.end(); ++i) {
+        auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+        local[bucket]++;
+      }
     });
 
-    tbb::parallel_for(
-      tbb::blocked_range<size_t>(0, array.size()),
-      [&](const tbb::blocked_range<size_t>& range) {
-        auto& local = local_freq.local();
-        for (size_t i = range.begin(); i < range.end(); ++i) {
-          auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
-          local[bucket]++;
-        }
-      }
-    );
-
-    std::fill(frequency.begin(), frequency.end(), 0);
+    std::ranges::fill(frequency, 0);
     local_freq.combine_each([&](const std::vector<int>& local) {
       for (int i = 0; i < bucket_count; ++i) {
         frequency[i] += local[i];
@@ -88,10 +83,8 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right, int 
   int mid = left + ((right - left) / 2);
 
   if (depth < max_depth) {
-    tbb::parallel_invoke(
-      [&] { BatcherOddEvenMerge(array, left, mid, depth + 1); },
-      [&] { BatcherOddEvenMerge(array, mid, right, depth + 1); }
-    );
+    tbb::parallel_invoke([&] { BatcherOddEvenMerge(array, left, mid, depth + 1); },
+                         [&] { BatcherOddEvenMerge(array, mid, right, depth + 1); });
   } else {
     BatcherOddEvenMerge(array, left, mid, depth + 1);
     BatcherOddEvenMerge(array, mid, right, depth + 1);
@@ -109,16 +102,12 @@ void RadixBatcherSort(std::vector<double>& data) {
 
   int max_parallel_depth = int(std::log2(data.size()) + 1);
 
-  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) {
-    transformed_data[i] = EncodeDoubleToUint64(data[i]);
-  });
+  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) { transformed_data[i] = EncodeDoubleToUint64(data[i]); });
 
   RadixSort(transformed_data);
   BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()), max_parallel_depth);
 
-  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) {
-    data[i] = DecodeUint64ToDouble(transformed_data[i]);
-  });
+  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) { data[i] = DecodeUint64ToDouble(transformed_data[i]); });
 }
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_tbb
