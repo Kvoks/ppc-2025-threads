@@ -1,7 +1,9 @@
 #include "tbb/khovansky_d_double_radix_batcher/include/ops_tbb.hpp"
 
 #include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/combinable.h>
 #include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/parallel_invoke.h>
 #include <tbb/tbb.h>
 
 #include <algorithm>
@@ -10,10 +12,6 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
-
-#include "oneapi/tbb/enumerable_thread_specific.h"
-#include "oneapi/tbb/task_arena.h"
-#include "oneapi/tbb/task_group.h"
 
 namespace khovansky_d_double_radix_batcher_tbb {
 namespace {
@@ -45,56 +43,59 @@ void RadixSort(std::vector<uint64_t>& array) {
   const int bucket_count = 256;
 
   std::vector<uint64_t> buffer(array.size(), 0);
+  std::vector<int> frequency(bucket_count, 0);
 
   for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
-    tbb::enumerable_thread_specific<std::vector<int>> local_histograms(
-        [=] { return std::vector<int>(bucket_count, 0); });
-
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()), [&](const tbb::blocked_range<size_t>& r) {
-      auto& local = local_histograms.local();
-      for (size_t i = r.begin(); i < r.end(); ++i) {
-        auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
-        local[bucket]++;
-      }
+    tbb::combinable<std::vector<int>> local_freq([&]() {
+      return std::vector<int>(bucket_count, 0);
     });
 
-    std::vector<int> frequency(bucket_count, 0);
-    for (const auto& local : local_histograms) {
+    tbb::parallel_for(
+      tbb::blocked_range<size_t>(0, array.size()),
+      [&](const tbb::blocked_range<size_t>& range) {
+        auto& local = local_freq.local();
+        for (size_t i = range.begin(); i < range.end(); ++i) {
+          auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+          local[bucket]++;
+        }
+      }
+    );
+
+    std::fill(frequency.begin(), frequency.end(), 0);
+    local_freq.combine_each([&](const std::vector<int>& local) {
       for (int i = 0; i < bucket_count; ++i) {
         frequency[i] += local[i];
       }
-    }
-
-    std::vector<int> offsets(bucket_count, 0);
-    for (int i = 1; i < bucket_count; ++i) {
-      offsets[i] = offsets[i - 1] + frequency[i - 1];
-    }
-
-    tbb::enumerable_thread_specific<std::vector<int>> local_offsets([&]() { return offsets; });
-
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, array.size()), [&](const tbb::blocked_range<size_t>& r) {
-      auto& local_off = local_offsets.local();
-      for (size_t i = r.begin(); i < r.end(); ++i) {
-        uint64_t val = array[i];
-        auto bucket = static_cast<uint8_t>((val >> shift) & 0xFF);
-        size_t pos = local_off[bucket]++;
-        buffer[pos] = val;
-      }
     });
+
+    for (int i = 1; i < bucket_count; ++i) {
+      frequency[i] += frequency[i - 1];
+    }
+
+    for (int i = static_cast<int>(array.size()) - 1; i >= 0; i--) {
+      auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+      buffer[--frequency[bucket]] = array[i];
+    }
 
     array.swap(buffer);
   }
 }
 
-void OddEvenMergeSort(std::vector<uint64_t>& array, int left, int right) {
+void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right, int max_depth, int depth = 0) {
   if (right - left <= 1) {
     return;
   }
+  int mid = left + ((right - left) / 2);
 
-  int middle = left + ((right - left) / 2);
-
-  OddEvenMergeSort(array, left, middle);
-  OddEvenMergeSort(array, middle, right);
+  if (depth < max_depth) {
+    tbb::parallel_invoke(
+      [&] { BatcherOddEvenMerge(array, left, mid, depth + 1); },
+      [&] { BatcherOddEvenMerge(array, mid, right, depth + 1); }
+    );
+  } else {
+    BatcherOddEvenMerge(array, left, mid, depth + 1);
+    BatcherOddEvenMerge(array, mid, right, depth + 1);
+  }
 
   for (int i = left; i + 1 < right; i += 2) {
     if (array[i] > array[i + 1]) {
@@ -106,16 +107,18 @@ void OddEvenMergeSort(std::vector<uint64_t>& array, int left, int right) {
 void RadixBatcherSort(std::vector<double>& data) {
   std::vector<uint64_t> transformed_data(data.size(), 0);
 
-  for (std::size_t i = 0; i < data.size(); i++) {
+  int max_parallel_depth = int(std::log2(data.size()) + 1);
+
+  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) {
     transformed_data[i] = EncodeDoubleToUint64(data[i]);
-  }
+  });
 
   RadixSort(transformed_data);
-  OddEvenMergeSort(transformed_data, 0, static_cast<int>(transformed_data.size()));
+  BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()), max_parallel_depth);
 
-  for (std::size_t i = 0; i < data.size(); i++) {
+  tbb::parallel_for(size_t(0), data.size(), [&](size_t i) {
     data[i] = DecodeUint64ToDouble(transformed_data[i]);
-  }
+  });
 }
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_tbb
@@ -153,15 +156,8 @@ bool khovansky_d_double_radix_batcher_tbb::RadixTBB::ValidationImpl() {
 }
 
 bool khovansky_d_double_radix_batcher_tbb::RadixTBB::RunImpl() {
-  oneapi::tbb::task_arena arena(1);
-  arena.execute([&] {
-    tbb::task_group tg;
-    tg.run([&] {
-      output_ = input_;
-      khovansky_d_double_radix_batcher_tbb::RadixBatcherSort(output_);
-    });
-    tg.wait();
-  });
+  output_ = input_;
+  khovansky_d_double_radix_batcher_tbb::RadixBatcherSort(output_);
   return true;
 }
 
