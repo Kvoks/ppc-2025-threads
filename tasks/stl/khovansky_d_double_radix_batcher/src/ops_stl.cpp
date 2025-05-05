@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <cstring>
 #include <execution>
-#include <future>
-#include <thread>
 #include <vector>
 
 namespace khovansky_d_double_radix_batcher_stl {
