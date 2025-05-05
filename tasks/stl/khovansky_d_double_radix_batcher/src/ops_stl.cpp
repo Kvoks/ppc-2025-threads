@@ -89,6 +89,7 @@ void RadixBatcherSort(std::vector<double>& data) {
   /*for (std::size_t i = 0; i < data.size(); i++) {
     transformed_data[i] = EncodeDoubleToUint64(data[i]);
   }*/
+
   std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
 
   RadixSort(transformed_data);
