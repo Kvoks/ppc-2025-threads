@@ -96,26 +96,12 @@ void RadixBatcherSort(std::vector<double>& data) {
   RadixSort(transformed_data);
   BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()));
 
-  std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(), DecodeUint64ToDouble);
+  std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
+                 DecodeUint64ToDouble);
   /*for (std::size_t i = 0; i < data.size(); i++) {
     data[i] = DecodeUint64ToDouble(transformed_data[i]);
   }*/
 }
-/*
-void RadixBatcherSort(std::vector<double>& data) {
-  std::vector<uint64_t> transformed_data(data.size(), 0);
-
-  for (std::size_t i = 0; i < data.size(); i++) {
-    transformed_data[i] = EncodeDoubleToUint64(data[i]);
-  }
-
-  RadixSort(transformed_data);
-  OddEvenMergeSort(transformed_data, 0, static_cast<int>(transformed_data.size()));
-
-  for (std::size_t i = 0; i < data.size(); i++) {
-    data[i] = DecodeUint64ToDouble(transformed_data[i]);
-  }
-}*/
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_stl
 
@@ -125,7 +111,6 @@ bool khovansky_d_double_radix_batcher_stl::RadixSTL::PreProcessingImpl() {
   unsigned int input_size = task_data->inputs_count[0];
   unsigned int output_size = task_data->outputs_count[0];
 
-  //std::copy(std::execution::par, in_ptr, in_ptr + input_size, input_.begin());
   input_ = std::vector<double>(in_ptr, in_ptr + input_size);
   output_ = std::vector<double>(output_size, 0);
 
