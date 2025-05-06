@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -64,73 +63,55 @@ double DecodeUint64ToDouble(uint64_t encoded) {
   }
 }*/
 
-void ParallelRadixSort(std::vector<uint64_t>& array, int num_threads) {
+void ParallelRadixSort(std::vector<uint64_t>& array, int thread_count) {
   const int bits_in_byte = 8;
   const int total_bits = 64;
   const int bucket_count = 256;
-  const int n = static_cast<int>(array.size());
 
-  std::vector<uint64_t> buffer(n, 0);
+  std::vector<uint64_t> buffer(array.size(), 0);
+  std::vector<std::vector<int>> local_frequencies(thread_count, std::vector<int>(bucket_count, 0));
 
   for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
-    std::vector<std::vector<int>> local_freqs(num_threads, std::vector<int>(bucket_count, 0));
-
     std::vector<std::thread> threads;
-    for (int t = 0; t < num_threads; ++t) {
-      int start = t * n / num_threads;
-      int end = (t + 1 == num_threads) ? n : (t + 1) * n / num_threads;
+    size_t n = array.size();
+    size_t block_size = (n + thread_count - 1) / thread_count;
 
-      threads.emplace_back([&, t, start, end]() {
-        for (int i = start; i < end; ++i) {
-          uint8_t bucket = (array[i] >> shift) & 0xFF;
-          local_freqs[t][bucket]++;
+    for (int t = 0; t < thread_count; ++t) {
+      size_t begin = t * block_size;
+      size_t end = std::min(begin + block_size, n);
+
+      threads.emplace_back([&, begin, end, t]() {
+        for (size_t i = begin; i < end; ++i) {
+          uint8_t bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+          local_frequencies[t][bucket]++;
         }
       });
     }
-    for (auto& th : threads) th.join();
+    for (auto& th : threads) {
+      th.join();
+    }
 
-    std::vector<int> global_freq(bucket_count, 0);
+    std::vector<int> frequency(bucket_count, 0);
     for (int b = 0; b < bucket_count; ++b) {
-      for (int t = 0; t < num_threads; ++t) {
-        global_freq[b] += local_freqs[t][b];
+      for (int t = 0; t < thread_count; ++t) {
+        frequency[b] += local_frequencies[t][b];
+        local_frequencies[t][b] = 0;
       }
     }
 
-    std::vector<int> bucket_offsets(bucket_count, 0);
-    for (int i = 1; i < bucket_count; ++i) {
-      global_freq[i] += global_freq[i - 1];
-    }
-    for (int i = 0; i < bucket_count; ++i) {
-      bucket_offsets[i] = global_freq[i] - (i > 0 ? global_freq[i - 1] : 0);
+    for (int i = 1; i < bucket_count; i++) {
+      frequency[i] += frequency[i - 1];
     }
 
-    std::vector<std::vector<int>> local_offsets(num_threads, std::vector<int>(bucket_count, 0));
-    for (int b = 0; b < bucket_count; ++b) {
-      int offset = global_freq[b] - bucket_offsets[b];
-      for (int t = 0; t < num_threads; ++t) {
-        local_offsets[t][b] = offset;
-        offset += local_freqs[t][b];
-      }
+    for (int i = static_cast<int>(array.size()) - 1; i >= 0; i--) {
+      auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+      buffer[--frequency[bucket]] = array[i];
     }
-
-    threads.clear();
-    for (int t = 0; t < num_threads; ++t) {
-      int start = t * n / num_threads;
-      int end = (t + 1 == num_threads) ? n : (t + 1) * n / num_threads;
-
-      threads.emplace_back([&, t, start, end]() {
-        std::vector<int> offset_copy = local_offsets[t];
-        for (int i = start; i < end; ++i) {
-          uint8_t bucket = (array[i] >> shift) & 0xFF;
-          buffer[offset_copy[bucket]++] = array[i];
-        }
-      });
-    }
-    for (auto& th : threads) th.join();
 
     array.swap(buffer);
   }
 }
+
 
 void ParallelBatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right, int max_threads) {
   if (right - left <= 1) {
