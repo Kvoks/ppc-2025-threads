@@ -107,13 +107,13 @@ void RadixBatcherSort(std::vector<double>& data) {
     transformed_data[i] = EncodeDoubleToUint64(data[i]);
   }
 
-  //std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
+  // std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
 
   RadixSort(transformed_data);
   BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()));
 
-  //std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
-                 //DecodeUint64ToDouble);
+  // std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
+                 // DecodeUint64ToDouble);
   for (std::size_t i = 0; i < data.size(); i++) {
     data[i] = DecodeUint64ToDouble(transformed_data[i]);
   }
