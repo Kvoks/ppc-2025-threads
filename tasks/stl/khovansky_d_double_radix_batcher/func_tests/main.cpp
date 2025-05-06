@@ -1,4 +1,4 @@
-/*#include <gtest/gtest.h>
+#include <gtest/gtest.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -160,4 +160,3 @@ TEST(khovansky_d_double_radix_batcher_stl, large_array) {
   test_task_stl.PostProcessingImpl();
   EXPECT_EQ(exp_out, out);
 }
-*/

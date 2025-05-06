@@ -1,4 +1,4 @@
-/*#include "stl/khovansky_d_double_radix_batcher/include/ops_stl.hpp"
+#include "stl/khovansky_d_double_radix_batcher/include/ops_stl.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -66,6 +66,23 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
     return;
   }
 
+  int middle = left + ((right - left) / 2);
+
+  BatcherOddEvenMerge(array, left, middle);
+  BatcherOddEvenMerge(array, middle, right);
+
+  for (int i = left; i + 1 < right; i += 2) {
+    if (array[i] > array[i + 1]) {
+      std::swap(array[i], array[i + 1]);
+    }
+  }
+}
+/*
+void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
+  if (right - left <= 1) {
+    return;
+  }
+
   int mid = left + ((right - left) / 2);
 
   BatcherOddEvenMerge(array, left, mid);
@@ -81,25 +98,25 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
       std::swap(array[i], array[i + 1]);
     }
   });
-}
+}*/
 
 void RadixBatcherSort(std::vector<double>& data) {
   std::vector<uint64_t> transformed_data(data.size(), 0);
 
-  //for (std::size_t i = 0; i < data.size(); i++) {
-    //transformed_data[i] = EncodeDoubleToUint64(data[i]);
-  //}
+  for (std::size_t i = 0; i < data.size(); i++) {
+    transformed_data[i] = EncodeDoubleToUint64(data[i]);
+  }
 
-  std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
+  //std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
 
   RadixSort(transformed_data);
   BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()));
 
-  std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
-                 DecodeUint64ToDouble);
-  //for (std::size_t i = 0; i < data.size(); i++) {
-    //data[i] = DecodeUint64ToDouble(transformed_data[i]);
-  //}
+  //std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
+                 //DecodeUint64ToDouble);
+  for (std::size_t i = 0; i < data.size(); i++) {
+    data[i] = DecodeUint64ToDouble(transformed_data[i]);
+  }
 }
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_stl
@@ -147,4 +164,4 @@ bool khovansky_d_double_radix_batcher_stl::RadixSTL::PostProcessingImpl() {
     reinterpret_cast<double*>(task_data->outputs[0])[i] = output_[i];
   }
   return true;
-}*/
+}

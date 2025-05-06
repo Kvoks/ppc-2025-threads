@@ -1,4 +1,4 @@
-/*#pragma once
+#pragma once
 
 #include <utility>
 #include <vector>
@@ -20,4 +20,3 @@ class RadixSTL : public ppc::core::Task {
   std::vector<double> input_, output_;
 };
 }  // namespace khovansky_d_double_radix_batcher_stl
-*/

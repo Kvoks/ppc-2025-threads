@@ -1,4 +1,4 @@
-/*#include <gtest/gtest.h>
+#include <gtest/gtest.h>
 
 #include <chrono>
 #include <cstddef>
@@ -96,4 +96,4 @@ TEST(khovansky_d_double_radix_batcher_stl, test_task_run) {
   perf_analyzer->TaskRun(perf_attr, perf_results);
   ppc::core::Perf::PrintPerfStatistic(perf_results);
   ASSERT_EQ(exp_out, out);
-}*/
+}
