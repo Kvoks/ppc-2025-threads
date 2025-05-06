@@ -82,7 +82,7 @@ void ParallelRadixSort(std::vector<uint64_t>& array, int thread_count) {
 
       threads.emplace_back([&, begin, end, t]() {
         for (size_t i = begin; i < end; ++i) {
-          uint8_t bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
+          auto bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
           local_frequencies[t][bucket]++;
         }
       });
