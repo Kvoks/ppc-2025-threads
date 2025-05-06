@@ -60,7 +60,7 @@ void RadixSort(std::vector<uint64_t>& array) {
     array.swap(buffer);
   }
 }
-
+/*
 void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
   if (right - left <= 1) {
     return;
@@ -76,8 +76,8 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
       std::swap(array[i], array[i + 1]);
     }
   }
-}
-/*
+}*/
+
 void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
   if (right - left <= 1) {
     return;
@@ -98,25 +98,23 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
       std::swap(array[i], array[i + 1]);
     }
   });
-}*/
+}
 
 void RadixBatcherSort(std::vector<double>& data) {
   std::vector<uint64_t> transformed_data(data.size(), 0);
 
-  /*for (std::size_t i = 0; i < data.size(); i++) {
+  for (std::size_t i = 0; i < data.size(); i++) {
     transformed_data[i] = EncodeDoubleToUint64(data[i]);
-  }*/
+  }
 
   std::transform(std::execution::par, data.begin(), data.end(), transformed_data.begin(), EncodeDoubleToUint64);
 
   RadixSort(transformed_data);
   BatcherOddEvenMerge(transformed_data, 0, static_cast<int>(transformed_data.size()));
 
-  std::transform(std::execution::par, transformed_data.begin(), transformed_data.end(), data.begin(),
-                 DecodeUint64ToDouble);
-  /*for (std::size_t i = 0; i < data.size(); i++) {
+  for (std::size_t i = 0; i < data.size(); i++) {
     data[i] = DecodeUint64ToDouble(transformed_data[i]);
-  }*/
+  }
 }
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_stl
