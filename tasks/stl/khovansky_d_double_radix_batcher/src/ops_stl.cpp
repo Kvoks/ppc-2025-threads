@@ -5,8 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <thread>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include "core/util/include/util.hpp"
@@ -64,7 +64,8 @@ void RadixSort(std::vector<uint64_t>& array) {
   }
 }
 
-void ParallelBatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right, int max_threads = ppc::util::GetPPCNumThreads()) {
+void ParallelBatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right,
+                                 int max_threads = ppc::util::GetPPCNumThreads()) {
   if (right - left <= 1) return;
 
   int middle = left + ((right - left) / 2);
@@ -72,12 +73,8 @@ void ParallelBatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int rig
   std::thread left_thread, right_thread;
 
   if (max_threads > 1) {
-    left_thread = std::thread([&]() {
-      ParallelBatcherOddEvenMerge(array, left, middle, max_threads / 2);
-    });
-    right_thread = std::thread([&]() {
-      ParallelBatcherOddEvenMerge(array, middle, right, max_threads / 2);
-    });
+    left_thread = std::thread([&]() { ParallelBatcherOddEvenMerge(array, left, middle, max_threads / 2); });
+    right_thread = std::thread([&]() { ParallelBatcherOddEvenMerge(array, middle, right, max_threads / 2); });
   } else {
     ParallelBatcherOddEvenMerge(array, left, middle, 1);
     ParallelBatcherOddEvenMerge(array, middle, right, 1);
