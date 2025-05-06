@@ -184,7 +184,7 @@ void RadixBatcherSort(std::vector<double>& data) {
     th.join();
   }
 
-  //RadixSort(transformed_data);
+  // RadixSort(transformed_data);
   ParallelRadixSort(transformed_data, thread_count);
   ParallelBatcherOddEvenMerge(transformed_data, 0, static_cast<int>(n), thread_count);
 
