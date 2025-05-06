@@ -60,7 +60,7 @@ void RadixSort(std::vector<uint64_t>& array) {
     array.swap(buffer);
   }
 }
-/*
+
 void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
   if (right - left <= 1) {
     return;
@@ -76,8 +76,8 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
       std::swap(array[i], array[i + 1]);
     }
   }
-}*/
-
+}
+/*
 void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
   if (right - left <= 1) {
     return;
@@ -98,7 +98,7 @@ void BatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right) {
       std::swap(array[i], array[i + 1]);
     }
   });
-}
+}*/
 
 void RadixBatcherSort(std::vector<double>& data) {
   std::vector<uint64_t> transformed_data(data.size(), 0);
