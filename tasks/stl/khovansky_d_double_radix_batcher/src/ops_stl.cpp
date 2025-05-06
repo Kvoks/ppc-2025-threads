@@ -112,7 +112,6 @@ void ParallelRadixSort(std::vector<uint64_t>& array, int thread_count) {
   }
 }
 
-
 void ParallelBatcherOddEvenMerge(std::vector<uint64_t>& array, int left, int right, int max_threads) {
   if (right - left <= 1) {
     return;
