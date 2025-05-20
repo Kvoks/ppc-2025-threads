@@ -1,19 +1,20 @@
 #include "mpi/khovansky_d_double_radix_batcher/include/ops_all.hpp"
 
 #include <mpi.h>
+
+#include <algorithm>
 #include <boost/mpi/collectives.hpp>
 #include <boost/mpi/collectives/all_gather.hpp>
 #include <boost/mpi/collectives/gather.hpp>
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <vector>
-#include <thread>
 #include <future>
+#include <thread>
+#include <vector>
 
 #include "core/util/include/util.hpp"
 
@@ -126,16 +127,14 @@ void OddEvenMerge(std::vector<uint64_t>& local_data, int rank, int size, boost::
   for (int phase = 0; phase < size; ++phase) {
     int partner = ((rank + phase) % 2 == 0) ? rank + 1 : rank - 1;
 
-    if (partner < 0 || partner >= size)
-      continue;
+    if (partner < 0 || partner >= size) continue;
 
     world.send(partner, 0, local_data);
     world.recv(partner, 0, recv_buffer);
 
     std::vector<uint64_t> merged;
     merged.reserve(2 * local_size);
-    std::merge(local_data.begin(), local_data.end(),
-               recv_buffer.begin(), recv_buffer.end(),
+    std::merge(local_data.begin(), local_data.end(), recv_buffer.begin(), recv_buffer.end(),
                std::back_inserter(merged));
 
     if (rank < partner)
@@ -191,8 +190,8 @@ void RadixBatcherSort(std::vector<double>& local_data, int rank, int size, boost
   for (size_t i = 0; i < local_data.size(); ++i) {
     encoded[i] = EncodeDoubleToUint64(local_data[i]);
   }
-  RadixSort(encoded);  // Локальная поразрядная сортировка
-  OddEvenMerge(encoded, rank, size, world);  // Распределенное слияние
+  RadixSort(encoded);
+  OddEvenMerge(encoded, rank, size, world);
 
   for (size_t i = 0; i < local_data.size(); ++i) {
     local_data[i] = DecodeUint64ToDouble(encoded[i]);
@@ -223,16 +222,12 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PreProcessingImpl() {
 
   input_.resize(sendcounts[rank]);
 
-
-  MPI_Scatterv(in_ptr, sendcounts.data(), displs.data(), MPI_DOUBLE,
-               input_.data(), sendcounts[rank], MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
+  MPI_Scatterv(in_ptr, sendcounts.data(), displs.data(), MPI_DOUBLE, input_.data(), sendcounts[rank], MPI_DOUBLE, 0,
+               MPI_COMM_WORLD);
 
   output_.resize(input_.size());
   return true;
 }
-
-
 
 bool khovansky_d_double_radix_batcher_all::RadixAll::ValidationImpl() {
   if (!task_data) {
@@ -277,12 +272,8 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
     displs[i] = (i > 0) ? displs[i - 1] + recvcounts[i - 1] : 0;
   }
 
-  MPI_Gatherv(output_.data(), recvcounts[rank], MPI_DOUBLE,
-              reinterpret_cast<double*>(task_data->outputs[0]),
-              recvcounts.data(), displs.data(), MPI_DOUBLE,
-              0, MPI_COMM_WORLD);
+  MPI_Gatherv(output_.data(), recvcounts[rank], MPI_DOUBLE, reinterpret_cast<double*>(task_data->outputs[0]),
+              recvcounts.data(), displs.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   return true;
 }
-
-
