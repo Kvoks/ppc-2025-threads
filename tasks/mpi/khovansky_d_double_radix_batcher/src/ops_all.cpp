@@ -8,6 +8,8 @@
 #include <boost/mpi/collectives/gather.hpp>
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/utility.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -16,8 +18,6 @@
 #include <thread>
 #include <vector>
 
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/utility.hpp>
 #include "core/util/include/util.hpp"
 
 namespace khovansky_d_double_radix_batcher_all {
@@ -143,7 +143,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PreProcessingImpl() {
   std::vector<double> local(per_proc);
   boost::mpi::scatter(world_, input_, local.data(), per_proc, 0);
   input_.swap(local);
-  
+
   return true;
 }
 
@@ -174,7 +174,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::ValidationImpl() {
 bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
   int rank = world_.rank();
   int size = world_.size();
-  
+
   std::vector<uint64_t> local;
   for (auto d : input_) local.push_back(EncodeDoubleToUint64(d));
   size_t n = local.size();
@@ -184,7 +184,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
   int stages = static_cast<int>(std::ceil(std::log2(size)));
   for (int stage = 0; stage < stages; ++stage) {
     int offset = 1 << (stages - stage - 1);
-    
+
     for (int step = offset; step > 0; step >>= 1) {
       int partner = rank ^ step;
       if (partner >= size) continue;
@@ -204,9 +204,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
       boost::mpi::wait_all(reqs, reqs + 2);
 
       std::vector<uint64_t> merged;
-      std::merge(local.begin(), local.end(),
-                recv_data.begin(), recv_data.end(),
-                std::back_inserter(merged));
+      std::merge(local.begin(), local.end(), recv_data.begin(), recv_data.end(), std::back_inserter(merged));
 
       if (rank < partner) {
         local.assign(merged.begin(), merged.begin() + local.size());
@@ -221,7 +219,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
   for (size_t i = 0; i < local.size(); ++i) {
     output_[i] = DecodeUint64ToDouble(local[i]);
   }
-  
+
   return true;
 }
 
@@ -240,14 +238,12 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
       gathered.insert(gathered.end(), part.begin(), part.end());
     }
 
-    auto it = std::remove(gathered.begin(), gathered.end(), 
-                        std::numeric_limits<double>::max());
+    auto it = std::remove(gathered.begin(), gathered.end(), std::numeric_limits<double>::max());
     gathered.erase(it, gathered.end());
 
     std::sort(gathered.begin(), gathered.end());
 
-    std::copy(gathered.begin(), gathered.end(), 
-             reinterpret_cast<double*>(task_data->outputs[0]));
+    std::copy(gathered.begin(), gathered.end(), reinterpret_cast<double*>(task_data->outputs[0]));
   }
 
   return true;
