@@ -180,7 +180,8 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
         reqs[0] = world_.irecv(partner, 0, recv_data.data(), data_size);
         reqs[1] = world_.isend(partner, 0, local.data(), data_size);
       }
-      boost::mpi::wait_all(reqs, reqs + 2);
+      reqs[0].wait();
+      reqs[1].wait();
 
       std::vector<uint64_t> merged;
       std::ranges::merge(local, recv_data, std::back_inserter(merged));
@@ -207,6 +208,7 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
 
 bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
   std::vector<std::vector<double>> all_data;
+  (void)boost::serialization::make_array(output_.data(), output_.size());
 
   if (world_.rank() == 0) {
     boost::mpi::gather(world_, output_, all_data, 0);
