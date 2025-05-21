@@ -7,7 +7,7 @@
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/request.hpp>
-#include <boost/serialization/vector.hpp>
+#include <boost/serialization/vector.hpp> // NOLINT(misc-include-cleaner)
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -208,7 +208,6 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
 
 bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
   std::vector<std::vector<double>> all_data;
-  (void)boost::serialization::make_array(output_.data(), output_.size());
 
   if (world_.rank() == 0) {
     boost::mpi::gather(world_, output_, all_data, 0);
