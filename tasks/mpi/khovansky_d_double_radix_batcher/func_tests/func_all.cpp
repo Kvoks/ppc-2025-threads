@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <boost/mpi/communicator.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -9,11 +10,11 @@
 #include "mpi/khovansky_d_double_radix_batcher/include/ops_all.hpp"
 
 TEST(khovansky_d_double_radix_batcher_all, invalid_input) {
+  boost::mpi::communicator world;
   std::vector<double> in{1.0};
   std::vector<double> out(1);
 
   auto task_data_seq = std::make_shared<ppc::core::TaskData>();
-  boost::mpi::communicator world;
   if (world.rank() == 0) {
     task_data_seq->inputs.emplace_back(reinterpret_cast<uint8_t *>(in.data()));
     task_data_seq->inputs_count.emplace_back(in.size());
@@ -28,12 +29,12 @@ TEST(khovansky_d_double_radix_batcher_all, invalid_input) {
 }
 
 TEST(khovansky_d_double_radix_batcher_all, negative_values) {
+  boost::mpi::communicator world;
   std::vector<double> in{-3.14, -1.0, -100.5, -0.1, -999.99};
   std::vector<double> exp_out{-999.99, -100.5, -3.14, -1.0, -0.1};
   std::vector<double> out(5);
 
   auto task_data_seq = std::make_shared<ppc::core::TaskData>();
-  boost::mpi::communicator world;
   if (world.rank() == 0) {
     task_data_seq->inputs.emplace_back(reinterpret_cast<uint8_t *>(in.data()));
     task_data_seq->inputs_count.emplace_back(in.size());
