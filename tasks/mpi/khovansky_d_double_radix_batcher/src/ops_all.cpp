@@ -7,7 +7,9 @@
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/request.hpp>
-#include <boost/serialization/vector.hpp>
+// #include <boost/serialization/vector.hpp>  // NOLINT(misc-include-cleaner)
+// this is necessary for explicit use of serialization, otherwise clang tidy
+// asks to remove the include, when removing which the build crashes
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -44,13 +46,6 @@ double DecodeUint64ToDouble(uint64_t transformed_data) {
   std::memcpy(&result, &transformed_data, sizeof(result));
   return result;
 }
-
-template <typename Archive>
-void serialize(Archive& ar, std::vector<double>& vec, unsigned) {
-  ar & vec;
-}
-// this is necessary for explicit use of serialization, otherwise clang tidy
-// asks to remove the include, when removing which the build crashes
 
 void RadixSort(std::vector<uint64_t>& array, int thread_count) {
   const int bits_in_byte = 8;
@@ -192,14 +187,11 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
 
       std::vector<uint64_t> merged;
       std::ranges::merge(local, recv_data, std::back_inserter(merged));
-      // std::merge(local.begin(), local.end(), recv_data.begin(), recv_data.end(), std::back_inserter(merged));
 
       if (rank < partner) {
         local.assign(merged.begin(), merged.begin() + static_cast<std::ptrdiff_t>(local.size()));
-        // local.assign(merged.begin(), merged.begin() + local.size());
       } else {
         local.assign(merged.end() - static_cast<std::ptrdiff_t>(local.size()), merged.end());
-        // local.assign(merged.end() - local.size(), merged.end());
       }
     }
     world_.barrier();
@@ -214,20 +206,19 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
 }
 
 bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
-  std::vector<std::vector<double>> all_data;
+  int rank = world_.rank();
+  int size = world_.size();
+  const int local_size = static_cast<int>(output_.size());
 
-  if (world_.rank() == 0) {
-    boost::mpi::gather(world_, output_, all_data, 0);
-  } else {
-    boost::mpi::gather(world_, output_, 0);
+  std::vector<double> gathered;
+
+  if (rank == 0) {
+    gathered.resize(local_size * size);
   }
 
-  if (world_.rank() == 0) {
-    std::vector<double> gathered;
-    for (const auto& part : all_data) {
-      gathered.insert(gathered.end(), part.begin(), part.end());
-    }
+  boost::mpi::gather(world_, output_.data(), local_size, gathered.data(), 0);
 
+  if (rank == 0) {
     auto removed = std::ranges::remove(gathered, std::numeric_limits<double>::max());
     gathered.erase(removed.begin(), removed.end());
 
@@ -239,3 +230,4 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
 
   return true;
 }
+
