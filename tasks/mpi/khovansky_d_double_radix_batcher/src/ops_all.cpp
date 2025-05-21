@@ -7,7 +7,7 @@
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/request.hpp>
-// #include <boost/serialization/vector.hpp>
+#include <boost/serialization/vector.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -44,7 +44,12 @@ double DecodeUint64ToDouble(uint64_t transformed_data) {
   std::memcpy(&result, &transformed_data, sizeof(result));
   return result;
 }
-
+template <typename Archive>
+void DummySerialize(Archive& ar, std::vector<double>& vec, unsigned) {
+  ar & vec;
+}
+// this is necessary for explicit use of serialization, otherwise clang tidy
+// asks to remove the include, when removing which the build crashes
 void RadixSort(std::vector<uint64_t>& array, int thread_count) {
   const int bits_in_byte = 8;
   const int total_bits = 64;
