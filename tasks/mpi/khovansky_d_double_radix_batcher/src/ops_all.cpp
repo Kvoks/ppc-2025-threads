@@ -230,4 +230,3 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
 
   return true;
 }
-
