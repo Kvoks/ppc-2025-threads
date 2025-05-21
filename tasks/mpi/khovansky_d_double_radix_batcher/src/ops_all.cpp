@@ -12,10 +12,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <iterator> 
+#include <iterator>
 #include <limits>
-#include <thread>
 #include <ranges>
+#include <thread>
 #include <vector>
 
 #include "core/util/include/util.hpp"
