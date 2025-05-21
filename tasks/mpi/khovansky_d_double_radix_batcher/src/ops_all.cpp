@@ -1,21 +1,21 @@
 #include "mpi/khovansky_d_double_radix_batcher/include/ops_all.hpp"
 
-#include <mpi.h>
-
 #include <algorithm>
 #include <boost/mpi/collectives.hpp>
-#include <boost/mpi/collectives/all_gather.hpp>
+#include <boost/mpi/collectives/broadcast.hpp>
 #include <boost/mpi/collectives/gather.hpp>
 #include <boost/mpi/collectives/scatter.hpp>
 #include <boost/mpi/communicator.hpp>
-#include <boost/serialization/utility.hpp>
+#include <boost/mpi/request.hpp>
 #include <boost/serialization/vector.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <future>
+#include <iterator> 
+#include <limits>
 #include <thread>
+#include <ranges>
 #include <vector>
 
 #include "core/util/include/util.hpp"
@@ -44,35 +44,6 @@ double DecodeUint64ToDouble(uint64_t transformed_data) {
   std::memcpy(&result, &transformed_data, sizeof(result));
   return result;
 }
-
-/*void RadixSort(std::vector<uint64_t>& array) {
-  const int bits_in_byte = 8;
-  const int total_bits = 64;
-  const int bucket_count = 256;
-
-  std::vector<uint64_t> buffer(array.size());
-  std::vector<int> frequency(bucket_count, 0);
-
-  for (int shift = 0; shift < total_bits; shift += bits_in_byte) {
-    std::fill(frequency.begin(), frequency.end(), 0);
-
-    for (uint64_t number : array) {
-      uint8_t bucket = static_cast<uint8_t>((number >> shift) & 0xFF);
-      frequency[bucket]++;
-    }
-
-    for (int i = 1; i < bucket_count; i++) {
-      frequency[i] += frequency[i - 1];
-    }
-
-    for (int i = static_cast<int>(array.size()) - 1; i >= 0; i--) {
-      uint8_t bucket = static_cast<uint8_t>((array[i] >> shift) & 0xFF);
-      buffer[--frequency[bucket]] = array[i];
-    }
-
-    array.swap(buffer);
-  }
-}*/
 
 void RadixSort(std::vector<uint64_t>& array, int thread_count) {
   const int bits_in_byte = 8;
@@ -124,6 +95,7 @@ void RadixSort(std::vector<uint64_t>& array, int thread_count) {
 }
 }  // namespace
 }  // namespace khovansky_d_double_radix_batcher_all
+
 bool khovansky_d_double_radix_batcher_all::RadixAll::PreProcessingImpl() {
   int rank = world_.rank();
   int size = world_.size();
@@ -132,16 +104,18 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PreProcessingImpl() {
     size_t total = task_data->inputs_count[0];
     size_t per_proc = (total + size - 1) / size;
     input_.resize(per_proc * size, std::numeric_limits<double>::max());
-    double* src = reinterpret_cast<double*>(task_data->inputs[0]);
+    auto* src = reinterpret_cast<double*>(task_data->inputs[0]);
     std::copy(src, src + total, input_.begin());
   }
 
-  size_t per_proc;
-  if (rank == 0) per_proc = input_.size() / size;
+  size_t per_proc = 0;
+  if (rank == 0) {
+    per_proc = input_.size() / size;
+  }
   boost::mpi::broadcast(world_, per_proc, 0);
 
   std::vector<double> local(per_proc);
-  boost::mpi::scatter(world_, input_, local.data(), per_proc, 0);
+  boost::mpi::scatter(world_, input_, local.data(), static_cast<int>(per_proc), 0);
   input_.swap(local);
 
   return true;
@@ -176,7 +150,10 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
   int size = world_.size();
 
   std::vector<uint64_t> local;
-  for (auto d : input_) local.push_back(EncodeDoubleToUint64(d));
+  local.reserve(input_.size());
+  for (auto d : input_) {
+    local.push_back(EncodeDoubleToUint64(d));
+  }
   size_t n = local.size();
   const int thread_count = std::max(1, std::min(static_cast<int>(n), ppc::util::GetPPCNumThreads()));
   RadixSort(local, thread_count);
@@ -187,7 +164,9 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
 
     for (int step = offset; step > 0; step >>= 1) {
       int partner = rank ^ step;
-      if (partner >= size) continue;
+      if (partner >= size) {
+        continue;
+      }
 
       const int data_size = static_cast<int>(local.size());
 
@@ -204,12 +183,15 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::RunImpl() {
       boost::mpi::wait_all(reqs, reqs + 2);
 
       std::vector<uint64_t> merged;
-      std::merge(local.begin(), local.end(), recv_data.begin(), recv_data.end(), std::back_inserter(merged));
+      std::ranges::merge(local, recv_data, std::back_inserter(merged));
+      // std::merge(local.begin(), local.end(), recv_data.begin(), recv_data.end(), std::back_inserter(merged));
 
       if (rank < partner) {
-        local.assign(merged.begin(), merged.begin() + local.size());
+        local.assign(merged.begin(), merged.begin() + static_cast<std::ptrdiff_t>(local.size()));
+        // local.assign(merged.begin(), merged.begin() + local.size());
       } else {
-        local.assign(merged.end() - local.size(), merged.end());
+        local.assign(merged.end() - static_cast<std::ptrdiff_t>(local.size()), merged.end());
+        // local.assign(merged.end() - local.size(), merged.end());
       }
     }
     world_.barrier();
@@ -238,12 +220,13 @@ bool khovansky_d_double_radix_batcher_all::RadixAll::PostProcessingImpl() {
       gathered.insert(gathered.end(), part.begin(), part.end());
     }
 
-    auto it = std::remove(gathered.begin(), gathered.end(), std::numeric_limits<double>::max());
-    gathered.erase(it, gathered.end());
+    auto removed = std::ranges::remove(gathered, std::numeric_limits<double>::max());
+    gathered.erase(removed.begin(), removed.end());
 
-    std::sort(gathered.begin(), gathered.end());
+    std::ranges::sort(gathered);
 
-    std::copy(gathered.begin(), gathered.end(), reinterpret_cast<double*>(task_data->outputs[0]));
+    auto* out_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+    std::ranges::copy(gathered, out_ptr);
   }
 
   return true;
